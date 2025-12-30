@@ -543,8 +543,8 @@
             <div class="contact-item">📱 Mobile: +91 XXXXX XXXXX</div>
             <div class="contact-item">📧 Email: info@srikdmshop.com</div>
             <div class="contact-item">📍 Address: Chennai, Tamil Nadu</div>
-            <a href="https://wa.me/919514157908?text=Hi%20I%20want%20to%20order%20from%20SRI%20KDM%20Shop" 
-               class="whatsapp-btn" target="_blank">
+            <a href="https://wa.me/919XXXXXXXXX?text=Hi%20I%20want%20to%20order%20from%20SRI%20KDM%20Shop" 
+               class="whatsapp-btn" target="_blank" id="contactWhatsApp">
                 💬 Order via WhatsApp
             </a>
         </div>
@@ -813,7 +813,10 @@
                 `Payment Mode: ${payment}%0A` +
                 `Transaction ID: ${transactionId}`;
             
-            const whatsappURL = `https://wa.me/919XXXXXXXXX?text=${message}`;
+            // Replace with your actual WhatsApp number (include country code without + or spaces)
+            // Example: For India +91 98765 43210, use: 919876543210
+            const whatsappNumber = '919XXXXXXXXX'; // CHANGE THIS TO YOUR REAL NUMBER
+            const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
             window.open(whatsappURL, '_blank');
             
             cart = [];
