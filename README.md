@@ -1,2 +1,2 @@
-# srikdmshop.github.io
+# srikdmshop-ctrl.github.io
 SRI KDM Shop E-commerce Website
