@@ -314,13 +314,33 @@
             margin-left: 1rem;
         }
 
-        .cart-total {
+        .cart-summary {
+            padding: 1rem;
+            border-top: 2px solid #eee;
+            margin-top: 1rem;
+        }
+
+        .cart-summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .cart-summary-row.subtotal {
+            color: #666;
+        }
+
+        .cart-summary-row.delivery {
+            color: #666;
+        }
+
+        .cart-summary-row.total {
             font-size: 1.5rem;
             font-weight: bold;
-            text-align: right;
-            padding: 1rem;
             border-top: 2px solid #000000;
-            margin-top: 1rem;
+            padding-top: 0.8rem;
+            margin-top: 0.8rem;
         }
 
         .form-group {
@@ -344,6 +364,42 @@
         .form-group textarea {
             resize: vertical;
             min-height: 80px;
+        }
+
+        .payment-details {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border: 2px solid #000000;
+        }
+
+        .payment-details h4 {
+            margin-bottom: 0.8rem;
+            color: #000000;
+        }
+
+        .payment-details p {
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .payment-details strong {
+            color: #000000;
+        }
+
+        .qr-code-container {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .qr-code-container img {
+            max-width: 250px;
+            width: 100%;
+            border: 2px solid #000000;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
         }
 
         .checkout-btn {
@@ -506,9 +562,7 @@
             </div>
             <div class="modal-body">
                 <div id="cartItems"></div>
-                <div class="cart-total">
-                    Total: ₹<span id="cartTotal">0</span>
-                </div>
+                <div class="cart-summary" id="cartSummary"></div>
                 
                 <div id="checkoutForm" style="display: none;">
                     <h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Checkout Details</h3>
@@ -526,12 +580,20 @@
                     </div>
                     <div class="form-group">
                         <label>Payment Mode *</label>
-                        <select id="paymentMode">
-                            <option value="COD">Cash on Delivery</option>
+                        <select id="paymentMode" required>
+                            <option value="">Select Payment Method</option>
                             <option value="UPI">UPI/GPay/PhonePe</option>
                             <option value="Bank Transfer">Bank Transfer</option>
                         </select>
                     </div>
+                    
+                    <div id="paymentDetailsSection"></div>
+                    
+                    <div class="form-group">
+                        <label>Transaction ID / Reference Number *</label>
+                        <input type="text" id="transactionId" placeholder="Enter your transaction ID" required>
+                    </div>
+                    
                     <button class="checkout-btn" id="placeOrderBtn">Place Order via WhatsApp</button>
                 </div>
                 
@@ -565,6 +627,7 @@
             { id: 12, name: 'Car Phone Holder', category: 'Mobile Accessories', price: 299, icon: '🚙', stock: 40 }
         ];
 
+        const DELIVERY_CHARGE = 50;
         let cart = [];
 
         function renderProducts(category = 'all') {
@@ -608,10 +671,13 @@
 
         function renderCart() {
             const cartItems = document.getElementById('cartItems');
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const cartSummary = document.getElementById('cartSummary');
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const total = subtotal + DELIVERY_CHARGE;
             
             if (cart.length === 0) {
                 cartItems.innerHTML = '<div class="empty-cart">Your cart is empty</div>';
+                cartSummary.innerHTML = '';
                 document.getElementById('proceedCheckoutBtn').style.display = 'none';
             } else {
                 cartItems.innerHTML = cart.map(item => `
@@ -628,10 +694,24 @@
                         </div>
                     </div>
                 `).join('');
+                
+                cartSummary.innerHTML = `
+                    <div class="cart-summary-row subtotal">
+                        <span>Subtotal:</span>
+                        <span>₹${subtotal}</span>
+                    </div>
+                    <div class="cart-summary-row delivery">
+                        <span>Delivery Charge:</span>
+                        <span>₹${DELIVERY_CHARGE}</span>
+                    </div>
+                    <div class="cart-summary-row total">
+                        <span>Total Amount:</span>
+                        <span>₹${total}</span>
+                    </div>
+                `;
+                
                 document.getElementById('proceedCheckoutBtn').style.display = 'block';
             }
-            
-            document.getElementById('cartTotal').textContent = total;
         }
 
         function updateQuantity(productId, delta) {
@@ -666,31 +746,72 @@
             document.getElementById('proceedCheckoutBtn').style.display = 'none';
         });
 
+        document.getElementById('paymentMode').addEventListener('change', (e) => {
+            const paymentDetailsSection = document.getElementById('paymentDetailsSection');
+            const paymentMode = e.target.value;
+            
+            if (paymentMode === 'Bank Transfer') {
+                paymentDetailsSection.innerHTML = `
+                    <div class="payment-details">
+                        <h4>🏦 Bank Transfer Details</h4>
+                        <p><strong>Account Number:</strong> 3651371819</p>
+                        <p><strong>Bank Name:</strong> Kotak</p>
+                        <p><strong>IFSC Code:</strong> KKBK0008723</p>
+                        <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
+                            Please transfer the amount and enter the transaction ID below.
+                        </p>
+                    </div>
+                `;
+            } else if (paymentMode === 'UPI') {
+                paymentDetailsSection.innerHTML = `
+                    <div class="payment-details">
+                        <h4>📱 UPI Payment</h4>
+                        <p style="margin-bottom: 10px;">Scan the QR code below to make payment:</p>
+                        <div class="qr-code-container">
+                            <img src="upi-qr.png" alt="UPI QR Code">
+                        </div>
+                        <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
+                            After payment, enter the transaction ID below.
+                        </p>
+                    </div>
+                `;
+            } else {
+                paymentDetailsSection.innerHTML = '';
+            }
+        });
+
         document.getElementById('placeOrderBtn').addEventListener('click', () => {
             const name = document.getElementById('customerName').value;
             const mobile = document.getElementById('customerMobile').value;
             const address = document.getElementById('customerAddress').value;
             const payment = document.getElementById('paymentMode').value;
+            const transactionId = document.getElementById('transactionId').value;
             
-            if (!name || !mobile || !address) {
-                alert('Please fill all required fields');
+            if (!name || !mobile || !address || !payment || !transactionId) {
+                alert('Please fill all required fields including Transaction ID');
                 return;
             }
+            
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const total = subtotal + DELIVERY_CHARGE;
             
             const orderDetails = cart.map(item => 
                 `${item.icon} ${item.name} - Qty: ${item.quantity} - ₹${item.price * item.quantity}`
             ).join('%0A');
             
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            
-            const message = `*New Order from SRI KDM Shop*%0A%0A` +
-                `*Customer Details:*%0A` +
+            const message = `*🛒 New Order from SRI KDM Shop*%0A%0A` +
+                `*📦 Order Items:*%0A${orderDetails}%0A%0A` +
+                `*💰 Payment Summary:*%0A` +
+                `Subtotal: ₹${subtotal}%0A` +
+                `Delivery Charge: ₹${DELIVERY_CHARGE}%0A` +
+                `*Total Amount: ₹${total}*%0A%0A` +
+                `*👤 Customer Details:*%0A` +
                 `Name: ${name}%0A` +
                 `Mobile: ${mobile}%0A` +
-                `Address: ${address}%0A` +
-                `Payment Mode: ${payment}%0A%0A` +
-                `*Order Items:*%0A${orderDetails}%0A%0A` +
-                `*Total Amount: ₹${total}*`;
+                `Address: ${address}%0A%0A` +
+                `*💳 Payment Information:*%0A` +
+                `Payment Mode: ${payment}%0A` +
+                `Transaction ID: ${transactionId}`;
             
             const whatsappURL = `https://wa.me/919XXXXXXXXX?text=${message}`;
             window.open(whatsappURL, '_blank');
@@ -698,6 +819,15 @@
             cart = [];
             updateCart();
             document.getElementById('cartModal').classList.remove('active');
+            
+            // Reset form
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerMobile').value = '';
+            document.getElementById('customerAddress').value = '';
+            document.getElementById('paymentMode').value = '';
+            document.getElementById('transactionId').value = '';
+            document.getElementById('paymentDetailsSection').innerHTML = '';
+            
             alert('Order details sent to WhatsApp! We will contact you shortly.');
         });
 
