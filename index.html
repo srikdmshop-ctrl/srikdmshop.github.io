@@ -402,6 +402,21 @@
             background: white;
         }
 
+        .screenshot-preview {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+
+        .screenshot-preview img {
+            max-width: 120px;
+            max-height: 80px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
         .checkout-btn {
             background: #27ae60;
             color: white;
@@ -593,8 +608,15 @@
                         <label>Transaction ID / Reference Number *</label>
                         <input type="text" id="transactionId" placeholder="Enter your transaction ID" required>
                     </div>
-                    
-                    <button class="checkout-btn" id="placeOrderBtn">Place Order via WhatsApp</button>
+
+                    <div class="form-group">
+                        <label>Upload Payment Screenshot *</label>
+                        <input type="file" id="paymentScreenshot" accept="image/*">
+                        <div class="screenshot-preview" id="screenshotPreview" style="display:none;"></div>
+                        <small style="color:#666;display:block;margin-top:6px;">Please upload a screenshot of the successful payment.</small>
+                    </div>
+
+                    <button class="checkout-btn" id="placeOrderBtn" disabled>Place Order via WhatsApp</button>
                 </div>
                 
                 <button class="checkout-btn" id="proceedCheckoutBtn" style="display: block;">
@@ -780,15 +802,62 @@
             }
         });
 
+        // Payment verification inputs
+        const transactionInput = document.getElementById('transactionId');
+        const screenshotInput = document.getElementById('paymentScreenshot');
+        const placeOrderBtn = document.getElementById('placeOrderBtn');
+        const screenshotPreview = document.getElementById('screenshotPreview');
+
+        function updatePlaceOrderState() {
+            const hasTxn = transactionInput && transactionInput.value.trim() !== '';
+            const hasScreenshot = screenshotInput && screenshotInput.files && screenshotInput.files.length > 0;
+            placeOrderBtn.disabled = !(hasTxn && hasScreenshot);
+        }
+
+        if (transactionInput) {
+            transactionInput.addEventListener('input', updatePlaceOrderState);
+        }
+
+        if (screenshotInput) {
+            screenshotInput.addEventListener('change', (e) => {
+                updatePlaceOrderState();
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    const file = files[0];
+                    // Show a small preview
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        screenshotPreview.style.display = 'flex';
+                        screenshotPreview.innerHTML = `<img src="${evt.target.result}" alt="screenshot">`;
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    screenshotPreview.style.display = 'none';
+                    screenshotPreview.innerHTML = '';
+                }
+            });
+        }
+
         document.getElementById('placeOrderBtn').addEventListener('click', () => {
             const name = document.getElementById('customerName').value;
             const mobile = document.getElementById('customerMobile').value;
             const address = document.getElementById('customerAddress').value;
             const payment = document.getElementById('paymentMode').value;
             const transactionId = document.getElementById('transactionId').value;
-            
-            if (!name || !mobile || !address || !payment || !transactionId) {
-                alert('Please fill all required fields including Transaction ID');
+            const screenshotPresent = document.getElementById('paymentScreenshot') && document.getElementById('paymentScreenshot').files.length > 0;
+
+            if (!name || !mobile || !address || !payment) {
+                alert('Please fill all required fields.');
+                return;
+            }
+
+            if (!transactionId || transactionId.trim() === '') {
+                alert('Please enter the Transaction ID before confirming the order.');
+                return;
+            }
+
+            if (!screenshotPresent) {
+                alert('Please upload the payment screenshot before confirming the order.');
                 return;
             }
             
