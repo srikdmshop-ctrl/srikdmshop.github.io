@@ -647,6 +647,77 @@
         const DELIVERY_CHARGE = 50;
         let cart = [];
 
+        /* Image resolution helpers
+           - Converts product name to a predictable slug
+           - Tries common extensions in `images/` folder and picks the first that loads
+           - If none found, falls back to the emoji/icon display
+        */
+        function nameToSlug(name) {
+            return String(name)
+                .toLowerCase()
+                .replace(/\s*\(.*?\)\s*/g, '')
+                .replace(/[^a-z0-9\s-]/g, '')
+                .trim()
+                .replace(/\s+/g, '-');
+        }
+
+        function tryImageExtensions(slug) {
+            const exts = ['jpg', 'jpeg', 'png', 'webp', 'svg'];
+            return new Promise((resolve) => {
+                let i = 0;
+                const tryNext = () => {
+                    if (i >= exts.length) return resolve(null);
+                    const url = `images/${slug}.${exts[i]}`;
+                    const img = new Image();
+                    img.onload = () => resolve(url);
+                    img.onerror = () => { i++; tryNext(); };
+                    img.src = url;
+                };
+                tryNext();
+            });
+        }
+
+        function resolveImageElement(imgEl) {
+            const override = imgEl.dataset.image;
+            const name = imgEl.dataset.productName;
+            const icon = imgEl.dataset.productIcon || '';
+
+            if (override) {
+                imgEl.src = override;
+                return;
+            }
+
+            if (!name) {
+                if (icon) imgEl.alt = icon;
+                return;
+            }
+
+            const slug = nameToSlug(name);
+            tryImageExtensions(slug).then(url => {
+                if (url) {
+                    imgEl.src = url;
+                } else {
+                    // fallback: replace img with emoji/icon block
+                    const parent = imgEl.parentElement;
+                    if (!parent) return;
+                    const iconDiv = document.createElement('div');
+                    iconDiv.className = 'product-icon';
+                    iconDiv.textContent = icon;
+                    parent.replaceChild(iconDiv, imgEl);
+                }
+            });
+        }
+
+        function setImageElements() {
+            document.querySelectorAll('img.product-image, img.cart-thumb').forEach(imgEl => {
+                // if src already set (eg. by explicit `image` property), skip resolving
+                if (imgEl.getAttribute('src')) {
+                    return;
+                }
+                resolveImageElement(imgEl);
+            });
+        }
+
         function renderProducts(category = 'all') {
             const grid = document.getElementById('productsGrid');
             const filtered = category === 'all' 
@@ -655,7 +726,9 @@
             
             grid.innerHTML = filtered.map(product => `
                 <div class="product-card">
-                    ${product.image ? `<img class="product-image" src="${product.image}" alt="${product.name}">` : `<div class="product-icon">${product.icon}</div>`}
+                    ${product.image
+                        ? `<img class="product-image" src="${product.image}" alt="${product.name}" data-product-name="${product.name}" data-product-icon="${product.icon}" data-image="${product.image}">`
+                        : `<img class="product-image" data-product-name="${product.name}" data-product-icon="${product.icon}">`}
                     <div class="product-name">${product.name}</div>
                     <div class="product-category">${product.category}</div>
                     <div class="product-price">₹${product.price}</div>
@@ -665,6 +738,9 @@
                     </button>
                 </div>
             `).join('');
+
+            // Resolve any image elements after rendering
+            setTimeout(setImageElements, 0);
         }
 
         function addToCart(productId) {
@@ -700,7 +776,9 @@
                 cartItems.innerHTML = cart.map(item => `
                     <div class="cart-item">
                         <div class="cart-item-info" style="display:flex; align-items:center; gap:0.5rem;">
-                            ${item.image ? `<img class="cart-thumb" src="${item.image}" alt="${item.name}">` : `<div style="font-size:1.4rem;">${item.icon}</div>`}
+                            ${item.image
+                                ? `<img class="cart-thumb" src="${item.image}" alt="${item.name}" data-product-name="${item.name}" data-product-icon="${item.icon}" data-image="${item.image}">`
+                                : `<img class="cart-thumb" data-product-name="${item.name}" data-product-icon="${item.icon}">`}
                             <div>
                                 <div class="cart-item-name">${item.name}</div>
                                 <div class="cart-item-price">₹${item.price} × ${item.quantity} = ₹${item.price * item.quantity}</div>
@@ -714,6 +792,9 @@
                         </div>
                     </div>
                 `).join('');
+
+                // Resolve cart thumbnails
+                setTimeout(setImageElements, 0);
                 
                 cartSummary.innerHTML = `
                     <div class="cart-summary-row subtotal">
