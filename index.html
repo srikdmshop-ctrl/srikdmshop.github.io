@@ -838,13 +838,38 @@
             });
         }
 
-        document.getElementById('placeOrderBtn').addEventListener('click', () => {
+        // Configurable upload endpoint: set this to your server that accepts multipart/form-data
+        // and returns JSON { url: 'https://public-url-to-image' }
+        const UPLOAD_ENDPOINT = ''; // e.g. 'https://your-server.com/upload'
+
+        async function uploadScreenshotFile(file) {
+            if (!UPLOAD_ENDPOINT) throw new Error('No upload endpoint configured');
+            const fd = new FormData();
+            fd.append('screenshot', file);
+
+            const resp = await fetch(UPLOAD_ENDPOINT, {
+                method: 'POST',
+                body: fd
+            });
+
+            if (!resp.ok) {
+                const txt = await resp.text();
+                throw new Error('Upload failed: ' + txt);
+            }
+
+            const data = await resp.json();
+            if (!data || !data.url) throw new Error('Invalid upload response');
+            return data.url;
+        }
+
+        document.getElementById('placeOrderBtn').addEventListener('click', async () => {
             const name = document.getElementById('customerName').value;
             const mobile = document.getElementById('customerMobile').value;
             const address = document.getElementById('customerAddress').value;
             const payment = document.getElementById('paymentMode').value;
             const transactionId = document.getElementById('transactionId').value;
-            const screenshotPresent = document.getElementById('paymentScreenshot') && document.getElementById('paymentScreenshot').files.length > 0;
+            const screenshotEl = document.getElementById('paymentScreenshot');
+            const screenshotPresent = screenshotEl && screenshotEl.files.length > 0;
 
             if (!name || !mobile || !address || !payment) {
                 alert('Please fill all required fields.');
@@ -860,15 +885,30 @@
                 alert('Please upload the payment screenshot before confirming the order.');
                 return;
             }
-            
+
+            placeOrderBtn.disabled = true;
+            const originalText = placeOrderBtn.textContent;
+            placeOrderBtn.textContent = 'Preparing order...';
+
+            let screenshotUrl = null;
+            try {
+                if (UPLOAD_ENDPOINT) {
+                    placeOrderBtn.textContent = 'Uploading screenshot...';
+                    screenshotUrl = await uploadScreenshotFile(screenshotEl.files[0]);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to upload screenshot: ' + err.message + '\nYou can still send the order and attach the screenshot manually in WhatsApp.');
+            }
+
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const total = subtotal + DELIVERY_CHARGE;
-            
-            const orderDetails = cart.map(item => 
+
+            const orderDetails = cart.map(item =>
                 `${item.icon} ${item.name} - Qty: ${item.quantity} - ₹${item.price * item.quantity}`
             ).join('%0A');
-            
-            const message = `*🛒 New Order from SRI KDM Shop*%0A%0A` +
+
+            let message = `*🛒 New Order from SRI KDM Shop*%0A%0A` +
                 `*📦 Order Items:*%0A${orderDetails}%0A%0A` +
                 `*💰 Payment Summary:*%0A` +
                 `Subtotal: ₹${subtotal}%0A` +
@@ -881,17 +921,21 @@
                 `*💳 Payment Information:*%0A` +
                 `Payment Mode: ${payment}%0A` +
                 `Transaction ID: ${transactionId}`;
-            
-            // Replace with your actual WhatsApp number (include country code without + or spaces)
-            // Example: For India +91 98765 43210, use: 919876543210
-            const whatsappNumber = '919514157908'; // CHANGE THIS TO YOUR REAL NUMBER
+
+            if (screenshotUrl) {
+                message += `%0A%0A*📎 Payment Screenshot:*%0A${encodeURIComponent(screenshotUrl)}`;
+            } else {
+                message += `%0A%0A*📎 Payment Screenshot:* Please attach the screenshot manually in WhatsApp.`;
+            }
+
+            const whatsappNumber = '919514157908'; // ensure correct number
             const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
             window.open(whatsappURL, '_blank');
-            
+
             cart = [];
             updateCart();
             document.getElementById('cartModal').classList.remove('active');
-            
+
             // Reset form
             document.getElementById('customerName').value = '';
             document.getElementById('customerMobile').value = '';
@@ -899,8 +943,16 @@
             document.getElementById('paymentMode').value = '';
             document.getElementById('transactionId').value = '';
             document.getElementById('paymentDetailsSection').innerHTML = '';
-            
-            alert('Order details sent to WhatsApp! We will contact you shortly.');
+            if (screenshotEl) {
+                screenshotEl.value = '';
+                screenshotPreview.style.display = 'none';
+                screenshotPreview.innerHTML = '';
+            }
+
+            placeOrderBtn.textContent = originalText;
+            placeOrderBtn.disabled = false;
+
+            alert('Order details prepared. WhatsApp window opened.');
         });
 
         document.querySelectorAll('.category-btn').forEach(btn => {
