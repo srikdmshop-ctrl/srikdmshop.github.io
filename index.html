@@ -436,6 +436,89 @@
             background: #229954;
         }
 
+        .pay-now-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+            width: 100%;
+            margin-top: 1rem;
+            transition: background 0.3s;
+        }
+
+        .pay-now-btn:hover {
+            background: #45a049;
+        }
+
+        .payment-app-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .payment-app-btn {
+            background: white;
+            border: 2px solid #ddd;
+            padding: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .payment-app-btn:hover {
+            border-color: #000;
+            transform: translateY(-2px);
+        }
+
+        .payment-app-btn.selected {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .payment-app-btn img {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 1rem;
+        }
+
+        .file-upload-area:hover {
+            border-color: #000;
+            background: #f9f9f9;
+        }
+
+        .file-upload-area.has-file {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .file-preview {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .file-preview img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+
         .empty-cart {
             text-align: center;
             padding: 2rem;
@@ -480,6 +563,20 @@
             display: inline-block;
             margin-top: 1rem;
             font-weight: bold;
+        }
+
+        .payment-status {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .payment-status.completed {
+            background: #d4edda;
+            border-color: #28a745;
         }
 
         @media (max-width: 768px) {
@@ -596,6 +693,10 @@
                         <textarea id="customerAddress" required></textarea>
                     </div>
                     <div class="form-group">
+                        <label>Product Description / Special Notes</label>
+                        <textarea id="productDescription" placeholder="Enter model, color, variant, or any special instructions..."></textarea>
+                    </div>
+                    <div class="form-group">
                         <label>Payment Mode *</label>
                         <select id="paymentMode" required>
                             <option value="">Select Payment Method</option>
@@ -606,12 +707,21 @@
                     
                     <div id="paymentDetailsSection"></div>
                     
-                    <div class="form-group">
-                        <label>Transaction ID / Reference Number *</label>
-                        <input type="text" id="transactionId" placeholder="Enter your transaction ID" required>
+                    <div id="paymentProofSection" style="display: none;">
+                        <h4 style="margin-top: 1.5rem; margin-bottom: 1rem;">Upload Payment Proof *</h4>
+                        <div class="file-upload-area" id="fileUploadArea">
+                            <input type="file" id="paymentProof" accept="image/*" style="display: none;">
+                            <p>📸 Click to upload payment screenshot</p>
+                            <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">
+                                Supported: JPG, PNG (Max 5MB)
+                            </p>
+                        </div>
+                        <div id="filePreview" class="file-preview"></div>
                     </div>
                     
-                    <button class="checkout-btn" id="placeOrderBtn">Place Order via WhatsApp</button>
+                    <button class="checkout-btn" id="placeOrderBtn" style="display: none;">
+                        Place Order via WhatsApp
+                    </button>
                 </div>
                 
                 <button class="checkout-btn" id="proceedCheckoutBtn" style="display: block;">
@@ -646,77 +756,8 @@
 
         const DELIVERY_CHARGE = 50;
         let cart = [];
-
-        /* Image resolution helpers
-           - Converts product name to a predictable slug
-           - Tries common extensions in `images/` folder and picks the first that loads
-           - If none found, falls back to the emoji/icon display
-        */
-        function nameToSlug(name) {
-            return String(name)
-                .toLowerCase()
-                .replace(/\s*\(.*?\)\s*/g, '')
-                .replace(/[^a-z0-9\s-]/g, '')
-                .trim()
-                .replace(/\s+/g, '-');
-        }
-
-        function tryImageExtensions(slug) {
-            const exts = ['jpg', 'jpeg', 'png', 'webp', 'svg'];
-            return new Promise((resolve) => {
-                let i = 0;
-                const tryNext = () => {
-                    if (i >= exts.length) return resolve(null);
-                    const url = `images/${slug}.${exts[i]}`;
-                    const img = new Image();
-                    img.onload = () => resolve(url);
-                    img.onerror = () => { i++; tryNext(); };
-                    img.src = url;
-                };
-                tryNext();
-            });
-        }
-
-        function resolveImageElement(imgEl) {
-            const override = imgEl.dataset.image;
-            const name = imgEl.dataset.productName;
-            const icon = imgEl.dataset.productIcon || '';
-
-            if (override) {
-                imgEl.src = override;
-                return;
-            }
-
-            if (!name) {
-                if (icon) imgEl.alt = icon;
-                return;
-            }
-
-            const slug = nameToSlug(name);
-            tryImageExtensions(slug).then(url => {
-                if (url) {
-                    imgEl.src = url;
-                } else {
-                    // fallback: replace img with emoji/icon block
-                    const parent = imgEl.parentElement;
-                    if (!parent) return;
-                    const iconDiv = document.createElement('div');
-                    iconDiv.className = 'product-icon';
-                    iconDiv.textContent = icon;
-                    parent.replaceChild(iconDiv, imgEl);
-                }
-            });
-        }
-
-        function setImageElements() {
-            document.querySelectorAll('img.product-image, img.cart-thumb').forEach(imgEl => {
-                // if src already set (eg. by explicit `image` property), skip resolving
-                if (imgEl.getAttribute('src')) {
-                    return;
-                }
-                resolveImageElement(imgEl);
-            });
-        }
+        let paymentProofFile = null;
+        let selectedPaymentApp = null;
 
         function renderProducts(category = 'all') {
             const grid = document.getElementById('productsGrid');
@@ -727,8 +768,8 @@
             grid.innerHTML = filtered.map(product => `
                 <div class="product-card">
                     ${product.image
-                        ? `<img class="product-image" src="${product.image}" alt="${product.name}" data-product-name="${product.name}" data-product-icon="${product.icon}" data-image="${product.image}">`
-                        : `<img class="product-image" data-product-name="${product.name}" data-product-icon="${product.icon}">`}
+                        ? `<img class="product-image" src="${product.image}" alt="${product.name}">`
+                        : `<div class="product-icon">${product.icon}</div>`}
                     <div class="product-name">${product.name}</div>
                     <div class="product-category">${product.category}</div>
                     <div class="product-price">₹${product.price}</div>
@@ -738,9 +779,6 @@
                     </button>
                 </div>
             `).join('');
-
-            // Resolve any image elements after rendering
-            setTimeout(setImageElements, 0);
         }
 
         function addToCart(productId) {
@@ -777,8 +815,8 @@
                     <div class="cart-item">
                         <div class="cart-item-info" style="display:flex; align-items:center; gap:0.5rem;">
                             ${item.image
-                                ? `<img class="cart-thumb" src="${item.image}" alt="${item.name}" data-product-name="${item.name}" data-product-icon="${item.icon}" data-image="${item.image}">`
-                                : `<img class="cart-thumb" data-product-name="${item.name}" data-product-icon="${item.icon}">`}
+                                ? `<img class="cart-thumb" src="${item.image}" alt="${item.name}">`
+                                : `<div style="font-size: 2rem;">${item.icon}</div>`}
                             <div>
                                 <div class="cart-item-name">${item.name}</div>
                                 <div class="cart-item-price">₹${item.price} × ${item.quantity} = ₹${item.price * item.quantity}</div>
@@ -792,9 +830,6 @@
                         </div>
                     </div>
                 `).join('');
-
-                // Resolve cart thumbnails
-                setTimeout(setImageElements, 0);
                 
                 cartSummary.innerHTML = `
                     <div class="cart-summary-row subtotal">
@@ -857,94 +892,3 @@
                         <h4>🏦 Bank Transfer Details</h4>
                         <p><strong>Account Number:</strong> 3651371819</p>
                         <p><strong>Bank Name:</strong> Kotak</p>
-                        <p><strong>IFSC Code:</strong> KKBK0008723</p>
-                        <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
-                            Please transfer the amount and enter the transaction ID below.
-                        </p>
-                    </div>
-                `;
-            } else if (paymentMode === 'UPI') {
-                paymentDetailsSection.innerHTML = `
-                    <div class="payment-details">
-                        <h4>📱 UPI Payment</h4>
-                        <p style="margin-bottom: 10px;">Scan the QR code below to make payment:</p>
-                        <div class="qr-code-container">
-                            <img src="upi-qr.png" alt="UPI QR Code">
-                        </div>
-                        <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
-                            After payment, enter the transaction ID below.
-                        </p>
-                    </div>
-                `;
-            } else {
-                paymentDetailsSection.innerHTML = '';
-            }
-        });
-
-        document.getElementById('placeOrderBtn').addEventListener('click', () => {
-            const name = document.getElementById('customerName').value;
-            const mobile = document.getElementById('customerMobile').value;
-            const address = document.getElementById('customerAddress').value;
-            const payment = document.getElementById('paymentMode').value;
-            const transactionId = document.getElementById('transactionId').value;
-            
-            if (!name || !mobile || !address || !payment || !transactionId) {
-                alert('Please fill all required fields including Transaction ID');
-                return;
-            }
-            
-            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const total = subtotal + DELIVERY_CHARGE;
-            
-            const orderDetails = cart.map(item => 
-                `${item.icon} ${item.name} - Qty: ${item.quantity} - ₹${item.price * item.quantity}`
-            ).join('%0A');
-            
-            const message = `*🛒 New Order from SRI KDM Shop*%0A%0A` +
-                `*📦 Order Items:*%0A${orderDetails}%0A%0A` +
-                `*💰 Payment Summary:*%0A` +
-                `Subtotal: ₹${subtotal}%0A` +
-                `Delivery Charge: ₹${DELIVERY_CHARGE}%0A` +
-                `*Total Amount: ₹${total}*%0A%0A` +
-                `*👤 Customer Details:*%0A` +
-                `Name: ${name}%0A` +
-                `Mobile: ${mobile}%0A` +
-                `Address: ${address}%0A%0A` +
-                `*💳 Payment Information:*%0A` +
-                `Payment Mode: ${payment}%0A` +
-                `Transaction ID: ${transactionId}`;
-            
-            // Replace with your actual WhatsApp number (include country code without + or spaces)
-            // Example: For India +91 98765 43210, use: 919876543210
-            const whatsappNumber = '919514157908'; // CHANGE THIS TO YOUR REAL NUMBER
-            const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
-            window.open(whatsappURL, '_blank');
-            
-            cart = [];
-            updateCart();
-            document.getElementById('cartModal').classList.remove('active');
-            
-            // Reset form
-            document.getElementById('customerName').value = '';
-            document.getElementById('customerMobile').value = '';
-            document.getElementById('customerAddress').value = '';
-            document.getElementById('paymentMode').value = '';
-            document.getElementById('transactionId').value = '';
-            document.getElementById('paymentDetailsSection').innerHTML = '';
-            
-            alert('Order details sent to WhatsApp! We will contact you shortly.');
-        });
-
-        document.querySelectorAll('.category-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                const category = e.target.dataset.category;
-                renderProducts(category);
-            });
-        });
-
-        renderProducts();
-    </script>
-</body>
-</html>
