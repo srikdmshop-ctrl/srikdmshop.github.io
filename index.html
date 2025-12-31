@@ -636,7 +636,7 @@
 
     <script>
         const products = [
-            { id: 1, name: 'Remote Control Car', category: 'Toys', price: 700, icon: '🚗', image: 'images/remote-car.png', stock: 50 },
+            { id: 1, name: 'Remote Control Car', category: 'Toys', price: 899, icon: '🚗', image: 'images/remote-car.svg', stock: 15 },
             { id: 2, name: 'Puzzle Set (100 pieces)', category: 'Toys', price: 299, icon: '🧩', image: 'images/puzzle-set.svg', stock: 25 },
             { id: 3, name: 'Teddy Bear', category: 'Toys', price: 599, icon: '🧸', image: 'images/teddy-bear.svg', stock: 20 },
             { id: 4, name: 'Action Figure', category: 'Toys', price: 799, icon: '🦸', image: 'images/action-figure.svg', stock: 18 },
@@ -941,7 +941,7 @@
         // Helper: attempt to open a UPI/payment intent. On mobile this should open installed apps.
         function openPaymentApp(mode, amount) {
             // Replace this VPA with your actual merchant VPA if available
-            const MERCHANT_VPA = 'muthumk1516-2@oksbi';
+            const MERCHANT_VPA = 'srikdmshop@upi';
             const MERCHANT_NAME = 'SRI KDM Shop';
 
             // Amount should be a number (no currency symbol)
@@ -972,28 +972,84 @@
                 return;
             }
 
-            // Optionally upload screenshot to an image hosting API (e.g., imgbb) if a key is configured.
-            // To use imgbb, set window.IMG_BB_KEY = 'YOUR_IMGBB_API_KEY' somewhere in the page.
-            let screenshotUrl = null;
-            try {
-                screenshotUrl = await uploadImage(screenshotInput.files[0]);
-            } catch (err) {
-                console.warn('Image upload failed or not configured:', err);
-            }
+            // If a server-side order endpoint is configured, send order + screenshot to it
+            const placeOrderEndpoint = window.PLACE_ORDER_ENDPOINT || null;
 
+            // Prepare cart summary text
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const total = subtotal + DELIVERY_CHARGE;
 
+            const orderItems = cart.map(item => ({ id: item.id, name: item.name, qty: item.quantity, price: item.price }));
+
+            if (placeOrderEndpoint) {
+                // Read screenshot as base64
+                const file = screenshotInput.files[0];
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const r = new FileReader();
+                    r.onload = () => resolve(r.result);
+                    r.onerror = reject;
+                    r.readAsDataURL(file);
+                });
+                const base64 = dataUrl.split(',')[1];
+
+                // Post to serverless endpoint
+                try {
+                    const res = await fetch(placeOrderEndpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customer: { name, mobile, address },
+                            payment: { mode: payment, notes },
+                            items: orderItems,
+                            subtotal, total,
+                            image: base64
+                        })
+                    });
+
+                    const json = await res.json();
+                    if (res.ok) {
+                        cart = [];
+                        updateCart();
+                        document.getElementById('cartModal').classList.remove('active');
+                        document.getElementById('customerName').value = '';
+                        document.getElementById('customerMobile').value = '';
+                        document.getElementById('customerAddress').value = '';
+                        document.getElementById('paymentMode').value = '';
+                        document.getElementById('paymentDetailsSection').innerHTML = '';
+                        document.getElementById('customerNotes').value = '';
+                        document.getElementById('paymentScreenshot').value = '';
+                        document.getElementById('screenshotPreview').innerHTML = '';
+                        alert('Order placed successfully. We received your payment screenshot and order details.');
+                        return;
+                    } else {
+                        console.warn('Server order endpoint error:', json);
+                        alert(json.message || 'Order submission failed on server. Falling back to WhatsApp link.');
+                        // fallback to previous behavior below
+                    }
+                } catch (err) {
+                    console.warn('Place order endpoint failed:', err);
+                    alert('Order submission failed on server. Falling back to WhatsApp link.');
+                    // fallback to previous behavior below
+                }
+            }
+
+            // fallback: build WhatsApp message including uploaded image URL if possible
+            const subtotal2 = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const total2 = subtotal2 + DELIVERY_CHARGE;
             const orderDetails = cart.map(item =>
                 `${item.icon} ${item.name} - Qty: ${item.quantity} - ₹${item.price * item.quantity}`
             ).join('%0A');
 
+            // Try to upload the image to a hosting service (Cloudinary/imgbb) to include a URL in the message
+            let screenshotUrl = null;
+            try { screenshotUrl = await uploadImage(screenshotInput.files[0]); } catch (e) { /* ignore */ }
+
             let message = `*🛒 New Order from SRI KDM Shop*%0A%0A` +
                 `*📦 Order Items:*%0A${orderDetails}%0A%0A` +
                 `*💰 Payment Summary:*%0A` +
-                `Subtotal: ₹${subtotal}%0A` +
+                `Subtotal: ₹${subtotal2}%0A` +
                 `Delivery Charge: ₹${DELIVERY_CHARGE}%0A` +
-                `*Total Amount: ₹${total}*%0A%0A` +
+                `*Total Amount: ₹${total2}*%0A%0A` +
                 `*👤 Customer Details:*%0A` +
                 `Name: ${name}%0A` +
                 `Mobile: ${mobile}%0A` +
@@ -1006,10 +1062,9 @@
             if (screenshotUrl) {
                 message += `%0A*📎 Payment Screenshot:*%0A${encodeURIComponent(screenshotUrl)}`;
             } else {
-                message += `%0A*📎 Payment Screenshot:* Uploaded by customer (please ask them to attach the file in WhatsApp if not visible).`;
+                message += `%0A*📎 Payment Screenshot:* Uploaded by customer (please attach in WhatsApp if not visible).`;
             }
 
-            // Replace with your actual WhatsApp number (include country code without + or spaces)
             const whatsappNumber = '919514157908'; // CHANGE THIS TO YOUR REAL NUMBER
             const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
             window.open(whatsappURL, '_blank');
@@ -1028,7 +1083,7 @@
             document.getElementById('paymentScreenshot').value = '';
             document.getElementById('screenshotPreview').innerHTML = '';
 
-            alert('Order details sent to WhatsApp! If your screenshot was not attached automatically, please attach it in the WhatsApp chat.');
+            alert('Order details prepared. Please send the WhatsApp message to complete chat-based confirmation.');
         });
 
         // Upload image helper: attempts uploads in this order:
